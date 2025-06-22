@@ -24,23 +24,6 @@ import (
 	"github.com/bluenviron/mediamtx/internal/stream"
 )
 
-// func srtCheckPassphrase(connSck *srtgo.SrtSocket, passphrase string) error {
-// 	if passphrase == "" {
-// 		return nil
-// 	}
-//
-// 	// if !connReq.IsEncrypted() {
-// 	// 	return fmt.Errorf("connection is encrypted, but not passphrase is defined in configuration")
-// 	// }
-//
-// 	err := connSck.SetSockOptString(srtgo.SRTO_PASSPHRASE, passphrase)
-// 	if err != nil {
-// 		return fmt.Errorf("invalid passphrase")
-// 	}
-//
-// 	return nil
-// }
-
 type conn struct {
 	parentCtx         context.Context
 	rtspAddress       string
@@ -166,13 +149,6 @@ func (c *conn) runPublish(streamID *streamID) error {
 		return err
 	}
 
-	// TODO: Refactor this?
-	// err = srtCheckPassphrase(c.connSck.socket, pathConf.SRTPublishPassphrase)
-	// if err != nil {
-	// 	c.connSck.socket.SetRejectReason(int(srtgo.EConnRej))
-	// 	return err
-	// }
-	//
 	sconn := c.connSck.socket
 
 	readerErr := make(chan error)
