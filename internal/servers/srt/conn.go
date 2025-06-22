@@ -341,65 +341,64 @@ func (c *conn) apiItem() *defs.APISRTConn {
 		Query:      c.query,
 	}
 
-	// TODO: refactor statistics
-	// if c.sconn != nil {
-	// 	var s srt.Statistics
-	// 	c.sconn.Stats(&s)
-	//
-	// 	item.PacketsSent = s.Accumulated.PktSent
-	// 	item.PacketsReceived = s.Accumulated.PktRecv
-	// 	item.PacketsSentUnique = s.Accumulated.PktSentUnique
-	// 	item.PacketsReceivedUnique = s.Accumulated.PktRecvUnique
-	// 	item.PacketsSendLoss = s.Accumulated.PktSendLoss
-	// 	item.PacketsReceivedLoss = s.Accumulated.PktRecvLoss
-	// 	item.PacketsRetrans = s.Accumulated.PktRetrans
-	// 	item.PacketsReceivedRetrans = s.Accumulated.PktRecvRetrans
-	// 	item.PacketsSentACK = s.Accumulated.PktSentACK
-	// 	item.PacketsReceivedACK = s.Accumulated.PktRecvACK
-	// 	item.PacketsSentNAK = s.Accumulated.PktSentNAK
-	// 	item.PacketsReceivedNAK = s.Accumulated.PktRecvNAK
-	// 	item.PacketsSentKM = s.Accumulated.PktSentKM
-	// 	item.PacketsReceivedKM = s.Accumulated.PktRecvKM
-	// 	item.UsSndDuration = s.Accumulated.UsSndDuration
-	// 	item.PacketsReceivedBelated = s.Accumulated.PktRecvBelated
-	// 	item.PacketsSendDrop = s.Accumulated.PktSendDrop
-	// 	item.PacketsReceivedDrop = s.Accumulated.PktRecvDrop
-	// 	item.PacketsReceivedUndecrypt = s.Accumulated.PktRecvUndecrypt
-	// 	item.BytesSent = s.Accumulated.ByteSent
-	// 	item.BytesReceived = s.Accumulated.ByteRecv
-	// 	item.BytesSentUnique = s.Accumulated.ByteSentUnique
-	// 	item.BytesReceivedUnique = s.Accumulated.ByteRecvUnique
-	// 	item.BytesReceivedLoss = s.Accumulated.ByteRecvLoss
-	// 	item.BytesRetrans = s.Accumulated.ByteRetrans
-	// 	item.BytesReceivedRetrans = s.Accumulated.ByteRecvRetrans
-	// 	item.BytesReceivedBelated = s.Accumulated.ByteRecvBelated
-	// 	item.BytesSendDrop = s.Accumulated.ByteSendDrop
-	// 	item.BytesReceivedDrop = s.Accumulated.ByteRecvDrop
-	// 	item.BytesReceivedUndecrypt = s.Accumulated.ByteRecvUndecrypt
-	// 	item.UsPacketsSendPeriod = s.Instantaneous.UsPktSendPeriod
-	// 	item.PacketsFlowWindow = s.Instantaneous.PktFlowWindow
-	// 	item.PacketsFlightSize = s.Instantaneous.PktFlightSize
-	// 	item.MsRTT = s.Instantaneous.MsRTT
-	// 	item.MbpsSendRate = s.Instantaneous.MbpsSentRate
-	// 	item.MbpsReceiveRate = s.Instantaneous.MbpsRecvRate
-	// 	item.MbpsLinkCapacity = s.Instantaneous.MbpsLinkCapacity
-	// 	item.BytesAvailSendBuf = s.Instantaneous.ByteAvailSendBuf
-	// 	item.BytesAvailReceiveBuf = s.Instantaneous.ByteAvailRecvBuf
-	// 	item.MbpsMaxBW = s.Instantaneous.MbpsMaxBW
-	// 	item.ByteMSS = s.Instantaneous.ByteMSS
-	// 	item.PacketsSendBuf = s.Instantaneous.PktSendBuf
-	// 	item.BytesSendBuf = s.Instantaneous.ByteSendBuf
-	// 	item.MsSendBuf = s.Instantaneous.MsSendBuf
-	// 	item.MsSendTsbPdDelay = s.Instantaneous.MsSendTsbPdDelay
-	// 	item.PacketsReceiveBuf = s.Instantaneous.PktRecvBuf
-	// 	item.BytesReceiveBuf = s.Instantaneous.ByteRecvBuf
-	// 	item.MsReceiveBuf = s.Instantaneous.MsRecvBuf
-	// 	item.MsReceiveTsbPdDelay = s.Instantaneous.MsRecvTsbPdDelay
-	// 	item.PacketsReorderTolerance = s.Instantaneous.PktReorderTolerance
-	// 	item.PacketsReceivedAvgBelatedTime = s.Instantaneous.PktRecvAvgBelatedTime
-	// 	item.PacketsSendLossRate = s.Instantaneous.PktSendLossRate
-	// 	item.PacketsReceivedLossRate = s.Instantaneous.PktRecvLossRate
-	// }
+	stats, err := c.connSck.socket.Stats()
+	if err != nil {
+		return nil
+	}
+
+	item.PacketsSent = uint64(stats.PktSentTotal)
+	item.PacketsReceived = uint64(stats.PktRecvTotal)
+	// item.PacketsSentUnique = uint64(stats.PktSentTotal - int64(stats.PktRetransTotal))
+	// item.PacketsReceivedUnique = uint64(stats.PktRecvTotal - int64(stats.PktRetransTotal))
+	item.PacketsSendLoss = uint64(stats.PktSndLossTotal)
+	item.PacketsReceivedLoss = uint64(stats.PktRcvLossTotal)
+	item.PacketsRetrans = uint64(stats.PktRetransTotal)
+	// item.PacketsReceivedRetrans = s.Accumulated.PktRecvRetrans
+	item.PacketsSentACK = uint64(stats.PktSentACKTotal)
+	item.PacketsReceivedACK = uint64(stats.PktRecvACKTotal)
+	item.PacketsSentNAK = uint64(stats.PktSentNAKTotal)
+	item.PacketsReceivedNAK = uint64(stats.PktRecvNAKTotal)
+	// item.PacketsSentKM = s.Accumulated.PktSentKM
+	// item.PacketsReceivedKM = s.Accumulated.PktRecvKM
+	item.UsSndDuration = uint64(stats.UsSndDurationTotal)
+	// item.PacketsReceivedBelated = s.Accumulated.PktRecvBelated
+	item.PacketsSendDrop = uint64(stats.PktSndDropTotal)
+	item.PacketsReceivedDrop = uint64(stats.PktRcvDropTotal)
+	item.PacketsReceivedUndecrypt = uint64(stats.PktRcvUndecryptTotal)
+	item.BytesSent = uint64(stats.ByteSentTotal)
+	item.BytesReceived = uint64(stats.ByteRecvTotal)
+	// item.BytesSentUnique = s.Accumulated.BytesSentUnique
+	// item.BytesReceivedUnique = s.Accumulated.ByteRecvUnique
+	item.BytesReceivedLoss = uint64(stats.ByteRcvLossTotal)
+	item.BytesRetrans = uint64(stats.ByteRetransTotal)
+	// item.BytesReceivedRetrans = s.Accumulated.ByteRecvRetrans
+	// item.BytesReceivedBelated = s.Accumulated.ByteRecvBelated
+	item.BytesSendDrop = uint64(stats.ByteSndDropTotal)
+	item.BytesReceivedDrop = uint64(stats.ByteRcvDropTotal)
+	item.BytesReceivedUndecrypt = uint64(stats.ByteRcvUndecryptTotal)
+	item.UsPacketsSendPeriod = stats.UsPktSndPeriod
+	item.PacketsFlowWindow = uint64(stats.PktFlowWindow)
+	item.PacketsFlightSize = uint64(stats.PktFlightSize)
+	item.MsRTT = stats.MsRTT
+	item.MbpsSendRate = stats.MbpsSendRate
+	item.MbpsReceiveRate = stats.MbpsRecvRate
+	// item.MbpsLinkCapacity = s.Instantaneous.MbpsLinkCapacity
+	item.BytesAvailSendBuf = uint64(stats.ByteAvailSndBuf)
+	item.BytesAvailReceiveBuf = uint64(stats.ByteAvailRcvBuf)
+	item.MbpsMaxBW = stats.MbpsMaxBW
+	item.ByteMSS = uint64(stats.ByteMSS)
+	item.PacketsSendBuf = uint64(stats.PktSndBuf)
+	item.BytesSendBuf = uint64(stats.ByteSndBuf)
+	item.MsSendBuf = uint64(stats.MsSndBuf)
+	item.MsSendTsbPdDelay = uint64(stats.MsSndTsbPdDelay)
+	item.PacketsReceiveBuf = uint64(stats.PktRcvBuf)
+	item.BytesReceiveBuf = uint64(stats.ByteRcvBuf)
+	item.MsReceiveBuf = uint64(stats.MsRcvBuf)
+	item.MsReceiveTsbPdDelay = uint64(stats.MsRcvTsbPdDelay)
+	item.PacketsReorderTolerance = uint64(stats.PktReorderTolerance)
+	item.PacketsReceivedAvgBelatedTime = uint64(stats.PktRcvAvgBelatedTime)
+	// item.PacketsSendLossRate = s.Instantaneous.PktSendLossRate
+	// item.PacketsReceivedLossRate = s.Instantaneous.PktRecvLossRate
 
 	return item
 }

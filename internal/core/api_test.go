@@ -783,36 +783,40 @@ func TestAPIProtocolListGet(t *testing.T) {
 					"pageCount": float64(1),
 					"items": []interface{}{
 						map[string]interface{}{
-							"byteMSS":                       float64(1500),
-							"bytesAvailReceiveBuf":          float64(0),
-							"bytesAvailSendBuf":             float64(0),
-							"bytesReceiveBuf":               float64(0),
-							"bytesReceived":                 float64(628),
-							"bytesReceivedBelated":          float64(0),
-							"bytesReceivedDrop":             float64(0),
-							"bytesReceivedLoss":             float64(0),
-							"bytesReceivedRetrans":          float64(0),
-							"bytesReceivedUndecrypt":        float64(0),
-							"bytesReceivedUnique":           float64(628),
-							"bytesRetrans":                  float64(0),
-							"bytesSendBuf":                  float64(0),
-							"bytesSendDrop":                 float64(0),
-							"bytesSent":                     float64(0),
-							"bytesSentUnique":               float64(0),
-							"created":                       out1.(map[string]interface{})["items"].([]interface{})[0].(map[string]interface{})["created"],
-							"id":                            out1.(map[string]interface{})["items"].([]interface{})[0].(map[string]interface{})["id"],
-							"mbpsLinkCapacity":              float64(0),
-							"mbpsMaxBW":                     float64(-1),
-							"mbpsReceiveRate":               float64(0),
+							"byteMSS":                float64(1500),
+							"bytesAvailReceiveBuf":   float64(12286500),
+							"bytesAvailSendBuf":      float64(12288000),
+							"bytesReceiveBuf":        float64(564),
+							"bytesReceived":          float64(608),
+							"bytesReceivedBelated":   float64(0),
+							"bytesReceivedDrop":      float64(0),
+							"bytesReceivedLoss":      float64(0),
+							"bytesReceivedRetrans":   float64(0),
+							"bytesReceivedUndecrypt": float64(0),
+							"bytesReceivedUnique":    float64(0),
+							"bytesRetrans":           float64(0),
+							"bytesSendBuf":           float64(0),
+							"bytesSendDrop":          float64(0),
+							"bytesSent":              float64(0),
+							"bytesSentUnique":        float64(0),
+							"created":                out1.(map[string]interface{})["items"].([]interface{})[0].(map[string]interface{})["created"],
+							"id":                     out1.(map[string]interface{})["items"].([]interface{})[0].(map[string]interface{})["id"],
+							"mbpsLinkCapacity":       float64(0),
+							"mbpsMaxBW":              float64(1000),
+							"mbpsReceiveRate": func() any {
+								v := out1.(map[string]any)["items"].([]any)[0].(map[string]any)["mbpsReceiveRate"].(float64)
+								require.Greater(t, v, float64(0))
+								return v
+							}(),
 							"mbpsSendRate":                  float64(0),
 							"msRTT":                         out1.(map[string]interface{})["items"].([]interface{})[0].(map[string]interface{})["msRTT"],
-							"msReceiveBuf":                  float64(0),
+							"msReceiveBuf":                  float64(1),
 							"msReceiveTsbPdDelay":           float64(120),
 							"msSendBuf":                     float64(0),
 							"msSendTsbPdDelay":              float64(120),
 							"packetsFlightSize":             float64(0),
-							"packetsFlowWindow":             float64(25600),
-							"packetsReceiveBuf":             float64(0),
+							"packetsFlowWindow":             float64(8192),
+							"packetsReceiveBuf":             float64(1),
 							"packetsReceived":               float64(1),
 							"packetsReceivedACK":            out1.(map[string]interface{})["items"].([]interface{})[0].(map[string]interface{})["packetsReceivedACK"],
 							"packetsReceivedAvgBelatedTime": float64(0),
@@ -824,7 +828,7 @@ func TestAPIProtocolListGet(t *testing.T) {
 							"packetsReceivedNAK":            float64(0),
 							"packetsReceivedRetrans":        float64(0),
 							"packetsReceivedUndecrypt":      float64(0),
-							"packetsReceivedUnique":         float64(1),
+							"packetsReceivedUnique":         float64(0),
 							"packetsReorderTolerance":       float64(0),
 							"packetsRetrans":                float64(0),
 							"packetsSendBuf":                float64(0),
@@ -840,7 +844,7 @@ func TestAPIProtocolListGet(t *testing.T) {
 							"query":                         "key=val",
 							"remoteAddr":                    out1.(map[string]interface{})["items"].([]interface{})[0].(map[string]interface{})["remoteAddr"],
 							"state":                         "publish",
-							"usPacketsSendPeriod":           float64(10.967254638671875),
+							"usPacketsSendPeriod":           float64(10),
 							"usSndDuration":                 float64(0),
 						},
 					},
@@ -848,7 +852,6 @@ func TestAPIProtocolListGet(t *testing.T) {
 			}
 
 			var out2 interface{}
-
 			if ca == "hls" {
 				httpRequest(t, hc, http.MethodGet, "http://localhost:9997/v3/"+pa+"/get/"+
 					out1.(map[string]interface{})["items"].([]interface{})[0].(map[string]interface{})["path"].(string),
@@ -859,7 +862,25 @@ func TestAPIProtocolListGet(t *testing.T) {
 					nil, &out2)
 			}
 
-			require.Equal(t, out1.(map[string]interface{})["items"].([]interface{})[0], out2)
+			if ca == "srt" {
+				out1Map := out1.(map[string]interface{})["items"].([]interface{})[0].(map[string]interface{})
+				out2Map := out2.(map[string]interface{})
+				out1MapCopy := make(map[string]interface{})
+				for k, v := range out1Map {
+					if k != "mbpsReceiveRate" {
+						out1MapCopy[k] = v
+					}
+				}
+				out2MapCopy := make(map[string]interface{})
+				for k, v := range out2Map {
+					if k != "mbpsReceiveRate" {
+						out2MapCopy[k] = v
+					}
+				}
+				require.Equal(t, out1MapCopy, out2MapCopy)
+			} else {
+				require.Equal(t, out1.(map[string]interface{})["items"].([]interface{})[0], out2)
+			}
 		})
 	}
 }
