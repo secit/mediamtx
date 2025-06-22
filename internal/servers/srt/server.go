@@ -155,15 +155,27 @@ func listenCallback(s *Server, socket *srtgo.SrtSocket, _ int, _ *net.UDPAddr, s
 func (s *Server) Initialize() error {
 	options := make(map[string]string)
 	options["blocking"] = "0"
-	// options["passphrase"] = s.PassPhrase
 	options["conntimeo"] = strconv.Itoa(int(time.Duration(s.ReadTimeout).Milliseconds()))
 	options["payloadsize"] = strconv.Itoa(srtMaxPayloadSize(s.UDPMaxPayloadSize))
 
-	s.sck = srtgo.NewSrtSocket("0.0.0.0", 8890, options)
+	host, portStr, err := net.SplitHostPort(s.Address)
+	if err != nil {
+		return err
+	}
+	if host == "" {
+		host = "0.0.0.0"
+	}
+	portInt, err := strconv.Atoi(portStr)
+	if err != nil {
+		return err
+	}
+	port := uint16(portInt)
+
+	s.sck = srtgo.NewSrtSocket(host, port, options)
 	s.sck.SetListenCallback(func(socket *srtgo.SrtSocket, version int, addr *net.UDPAddr, streamid string) bool {
 		return listenCallback(s, socket, version, addr, streamid)
 	})
-	err := s.sck.Listen(1)
+	err = s.sck.Listen(1)
 	if err != nil {
 		return err
 	}
