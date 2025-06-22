@@ -1,13 +1,15 @@
 package srt
 
 import (
+	"net"
 	"sync"
+	"time"
 
-	srt "github.com/datarhei/gosrt"
+	"github.com/haivision/srtgo"
 )
 
 type listener struct {
-	ln     srt.Listener
+	sck    *srtgo.SrtSocket
 	wg     *sync.WaitGroup
 	parent *Server
 }
@@ -27,11 +29,18 @@ func (l *listener) run() {
 
 func (l *listener) runInner() error {
 	for {
-		req, err := l.ln.Accept2()
+		// Accept connections with a timeout to avoid blocking indefinitely.
+		l.sck.SetPollTimeout(time.Second)
+		l.sck.SetReadDeadline(time.Now().Add(time.Second))
+
+		s, u, err := l.sck.Accept()
 		if err != nil {
+			if ne, ok := err.(net.Error); ok && ne.Timeout() {
+				continue
+			}
 			return err
 		}
 
-		l.parent.newConnRequest(req)
+		l.parent.newConnRequest(s, u)
 	}
 }
