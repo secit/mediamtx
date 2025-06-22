@@ -81,7 +81,6 @@ type Server struct {
 	RTSPAddress         string
 	ReadTimeout         conf.Duration
 	WriteTimeout        conf.Duration
-	ReadPassPhrase      string
 	UDPMaxPayloadSize   int
 	RunOnConnect        string
 	RunOnConnectRestart bool
@@ -110,15 +109,60 @@ type Server struct {
 	sck *srtgo.SrtSocket
 }
 
+func listenCallback(s *Server, socket *srtgo.SrtSocket, _ int, _ *net.UDPAddr, streamid string) bool {
+	var streamID streamID
+	err := streamID.unmarshal(streamid)
+	if err != nil {
+		socket.SetRejectReason(int(srtgo.EConnRej))
+		s.Log(logger.Error, "invalid stream ID '%s': %v", streamid, err)
+		return false
+	}
+
+	req := defs.PathAccessRequest{
+		Name:    streamID.path,
+		Publish: streamID.mode == streamIDModePublish,
+	}
+	path, err := s.PathManager.FindPathConf(defs.PathFindPathConfReq{
+		AccessRequest: req,
+	})
+	if err != nil {
+		return false
+	}
+
+	var passphrase string
+
+	if streamID.mode == streamIDModePublish {
+		passphrase = path.SRTPublishPassphrase
+	} else {
+		passphrase = path.SRTReadPassphrase
+	}
+
+	if passphrase == "" {
+		return true
+	}
+
+	err = socket.SetSockOptString(srtgo.SRTO_PASSPHRASE, passphrase)
+	if err != nil {
+		s.Log(logger.Error, "invalid passphrase in config")
+		return false
+	}
+
+	// allow connection
+	return true
+}
+
 // Initialize initializes the server.
 func (s *Server) Initialize() error {
 	options := make(map[string]string)
 	options["blocking"] = "0"
-	options["passphrase"] = s.ReadPassPhrase
+	// options["passphrase"] = s.PassPhrase
 	options["conntimeo"] = strconv.Itoa(int(time.Duration(s.ReadTimeout).Milliseconds()))
 	options["payloadsize"] = strconv.Itoa(srtMaxPayloadSize(s.UDPMaxPayloadSize))
 
 	s.sck = srtgo.NewSrtSocket("0.0.0.0", 8890, options)
+	s.sck.SetListenCallback(func(socket *srtgo.SrtSocket, version int, addr *net.UDPAddr, streamid string) bool {
+		return listenCallback(s, socket, version, addr, streamid)
+	})
 	err := s.sck.Listen(1)
 	if err != nil {
 		return err
