@@ -12,7 +12,7 @@ import (
 	"github.com/bluenviron/mediacommon/v2/pkg/codecs/h265"
 	"github.com/bluenviron/mediacommon/v2/pkg/codecs/mpeg4audio"
 	mcmpegts "github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
-	srt "github.com/datarhei/gosrt"
+	"github.com/haivision/srtgo"
 
 	"github.com/bluenviron/mediamtx/internal/logger"
 	"github.com/bluenviron/mediamtx/internal/stream"
@@ -30,7 +30,7 @@ func FromStream(
 	strea *stream.Stream,
 	reader stream.Reader,
 	bw *bufio.Writer,
-	sconn srt.Conn,
+	sconn *srtgo.SrtSocket,
 	writeTimeout time.Duration,
 ) error {
 	var w *mcmpegts.Writer
