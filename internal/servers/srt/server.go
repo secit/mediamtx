@@ -5,13 +5,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"reflect"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
-	srt "github.com/datarhei/gosrt"
 	"github.com/google/uuid"
+	"github.com/haivision/srtgo"
 
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/defs"
@@ -79,6 +81,7 @@ type Server struct {
 	RTSPAddress         string
 	ReadTimeout         conf.Duration
 	WriteTimeout        conf.Duration
+	ReadPassPhrase      string
 	UDPMaxPayloadSize   int
 	RunOnConnect        string
 	RunOnConnectRestart bool
@@ -91,26 +94,32 @@ type Server struct {
 	ctx       context.Context
 	ctxCancel func()
 	wg        sync.WaitGroup
-	ln        srt.Listener
 	conns     map[*conn]struct{}
 
 	// in
-	chNewConnRequest chan srt.ConnRequest
-	chAcceptErr      chan error
-	chCloseConn      chan *conn
-	chAPIConnsList   chan serverAPIConnsListReq
-	chAPIConnsGet    chan serverAPIConnsGetReq
-	chAPIConnsKick   chan serverAPIConnsKickReq
+	chNewConnRequest chan struct {
+		socket *srtgo.SrtSocket
+		addr   *net.UDPAddr
+	}
+	chAcceptErr    chan error
+	chCloseConn    chan *conn
+	chAPIConnsList chan serverAPIConnsListReq
+	chAPIConnsGet  chan serverAPIConnsGetReq
+	chAPIConnsKick chan serverAPIConnsKickReq
+
+	sck *srtgo.SrtSocket
 }
 
 // Initialize initializes the server.
 func (s *Server) Initialize() error {
-	conf := srt.DefaultConfig()
-	conf.ConnectionTimeout = time.Duration(s.ReadTimeout)
-	conf.PayloadSize = uint32(srtMaxPayloadSize(s.UDPMaxPayloadSize))
+	options := make(map[string]string)
+	options["blocking"] = "0"
+	options["passphrase"] = s.ReadPassPhrase
+	options["conntimeo"] = strconv.Itoa(int(time.Duration(s.ReadTimeout).Milliseconds()))
+	options["payloadsize"] = strconv.Itoa(srtMaxPayloadSize(s.UDPMaxPayloadSize))
 
-	var err error
-	s.ln, err = srt.Listen("srt", s.Address, conf)
+	s.sck = srtgo.NewSrtSocket("0.0.0.0", 8890, options)
+	err := s.sck.Listen(1)
 	if err != nil {
 		return err
 	}
@@ -118,7 +127,10 @@ func (s *Server) Initialize() error {
 	s.ctx, s.ctxCancel = context.WithCancel(context.Background())
 
 	s.conns = make(map[*conn]struct{})
-	s.chNewConnRequest = make(chan srt.ConnRequest)
+	s.chNewConnRequest = make(chan struct {
+		socket *srtgo.SrtSocket
+		addr   *net.UDPAddr
+	})
 	s.chAcceptErr = make(chan error)
 	s.chCloseConn = make(chan *conn)
 	s.chAPIConnsList = make(chan serverAPIConnsListReq)
@@ -128,7 +140,7 @@ func (s *Server) Initialize() error {
 	s.Log(logger.Info, "listener opened on "+s.Address+" (UDP)")
 
 	l := &listener{
-		ln:     s.ln,
+		sck:    s.sck,
 		wg:     &s.wg,
 		parent: s,
 	}
@@ -178,7 +190,7 @@ outer:
 				readTimeout:         s.ReadTimeout,
 				writeTimeout:        s.WriteTimeout,
 				udpMaxPayloadSize:   s.UDPMaxPayloadSize,
-				connReq:             req,
+				connSck:             req,
 				runOnConnect:        s.RunOnConnect,
 				runOnConnectRestart: s.RunOnConnectRestart,
 				runOnDisconnect:     s.RunOnDisconnect,
@@ -235,7 +247,7 @@ outer:
 
 	s.ctxCancel()
 
-	s.ln.Close()
+	s.sck.Close()
 }
 
 func (s *Server) findConnByUUID(uuid uuid.UUID) *conn {
@@ -248,11 +260,14 @@ func (s *Server) findConnByUUID(uuid uuid.UUID) *conn {
 }
 
 // newConnRequest is called by srtListener.
-func (s *Server) newConnRequest(connReq srt.ConnRequest) {
+func (s *Server) newConnRequest(connSck *srtgo.SrtSocket, udpAddr *net.UDPAddr) {
 	select {
-	case s.chNewConnRequest <- connReq:
+	case s.chNewConnRequest <- struct {
+		socket *srtgo.SrtSocket
+		addr   *net.UDPAddr
+	}{connSck, udpAddr}:
 	case <-s.ctx.Done():
-		connReq.Reject(srt.REJ_CLOSE)
+		connSck.SetRejectReason(int(srtgo.ESClosed))
 	}
 }
 
