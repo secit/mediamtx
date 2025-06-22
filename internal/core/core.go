@@ -613,6 +613,7 @@ func (p *Core) createResources(initial bool) error {
 			RTSPAddress:         p.conf.RTSPAddress,
 			ReadTimeout:         p.conf.ReadTimeout,
 			WriteTimeout:        p.conf.WriteTimeout,
+			ReadPassPhrase:      p.conf.PathDefaults.SRTReadPassphrase,
 			UDPMaxPayloadSize:   p.conf.UDPMaxPayloadSize,
 			RunOnConnect:        p.conf.RunOnConnect,
 			RunOnConnectRestart: p.conf.RunOnConnectRestart,
