@@ -19,8 +19,8 @@ import (
 	"github.com/bluenviron/gortsplib/v5/pkg/description"
 	"github.com/bluenviron/gortsplib/v5/pkg/format"
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
-	srt "github.com/datarhei/gosrt"
 	"github.com/google/uuid"
+	"github.com/haivision/srtgo"
 	"github.com/pion/rtp"
 	pwebrtc "github.com/pion/webrtc/v4"
 	"github.com/stretchr/testify/require"
@@ -548,19 +548,21 @@ func TestAPIProtocolListGet(t *testing.T) {
 				defer checkClose(t, c.Close)
 
 			case "srt":
-				conf := srt.DefaultConfig()
-				conf.StreamId = "publish:mypath:::key=val"
+				options := make(map[string]string)
+				options["blocking"] = "0"
+				options["mode"] = "caller"
+				options["streamid"] = "publish:mypath:::key=val"
+				srtSck := srtgo.NewSrtSocket("127.0.0.1", 8890, options)
 
-				var conn srt.Conn
-				conn, err = srt.Dial("srt", "localhost:8890", conf)
+				err := srtSck.Connect()
 				require.NoError(t, err)
-				defer conn.Close()
+				defer srtSck.Close()
 
 				track := &mpegts.Track{
 					Codec: &mpegts.CodecH264{},
 				}
 
-				bw := bufio.NewWriter(conn)
+				bw := bufio.NewWriter(srtSck)
 				w := &mpegts.Writer{W: bw, Tracks: []*mpegts.Track{track}}
 				err = w.Initialize()
 				require.NoError(t, err)
@@ -1075,19 +1077,21 @@ func TestAPIProtocolKick(t *testing.T) {
 				}()
 
 			case "srt":
-				conf := srt.DefaultConfig()
-				conf.StreamId = "publish:mypath"
+				options := make(map[string]string)
+				options["blocking"] = "0"
+				options["mode"] = "caller"
+				options["streamid"] = "publish:mypath"
+				srtSck := srtgo.NewSrtSocket("127.0.0.1", 8890, options)
 
-				var conn srt.Conn
-				conn, err = srt.Dial("srt", "localhost:8890", conf)
+				err := srtSck.Connect()
 				require.NoError(t, err)
-				defer conn.Close()
+				defer srtSck.Close()
 
 				track := &mpegts.Track{
 					Codec: &mpegts.CodecH264{},
 				}
 
-				bw := bufio.NewWriter(conn)
+				bw := bufio.NewWriter(srtSck)
 				w := &mpegts.Writer{W: bw, Tracks: []*mpegts.Track{track}}
 				err = w.Initialize()
 				require.NoError(t, err)
