@@ -11,8 +11,8 @@ import (
 
 	"github.com/bluenviron/gortsplib/v4/pkg/description"
 	mcmpegts "github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
-	srt "github.com/datarhei/gosrt"
 	"github.com/google/uuid"
+	"github.com/haivision/srtgo"
 
 	"github.com/bluenviron/mediamtx/internal/auth"
 	"github.com/bluenviron/mediamtx/internal/conf"
@@ -25,22 +25,22 @@ import (
 	"github.com/bluenviron/mediamtx/internal/stream"
 )
 
-func srtCheckPassphrase(connReq srt.ConnRequest, passphrase string) error {
-	if passphrase == "" {
-		return nil
-	}
-
-	if !connReq.IsEncrypted() {
-		return fmt.Errorf("connection is encrypted, but not passphrase is defined in configuration")
-	}
-
-	err := connReq.SetPassphrase(passphrase)
-	if err != nil {
-		return fmt.Errorf("invalid passphrase")
-	}
-
-	return nil
-}
+// func srtCheckPassphrase(connSck *srtgo.SrtSocket, passphrase string) error {
+// 	if passphrase == "" {
+// 		return nil
+// 	}
+//
+// 	// if !connReq.IsEncrypted() {
+// 	// 	return fmt.Errorf("connection is encrypted, but not passphrase is defined in configuration")
+// 	// }
+//
+// 	err := connSck.SetSockOptString(srtgo.SRTO_PASSPHRASE, passphrase)
+// 	if err != nil {
+// 		return fmt.Errorf("invalid passphrase")
+// 	}
+//
+// 	return nil
+// }
 
 type connState int
 
@@ -50,12 +50,16 @@ const (
 )
 
 type conn struct {
-	parentCtx           context.Context
-	rtspAddress         string
-	readTimeout         conf.Duration
-	writeTimeout        conf.Duration
-	udpMaxPayloadSize   int
-	connReq             srt.ConnRequest
+	parentCtx         context.Context
+	rtspAddress       string
+	readTimeout       conf.Duration
+	writeTimeout      conf.Duration
+	udpMaxPayloadSize int
+	// connReq           srt.ConnRequest
+	connSck struct {
+		socket *srtgo.SrtSocket
+		addr   *net.UDPAddr
+	}
 	runOnConnect        string
 	runOnConnectRestart bool
 	runOnDisconnect     string
@@ -72,7 +76,7 @@ type conn struct {
 	state     connState
 	pathName  string
 	query     string
-	sconn     srt.Conn
+	sconn     *srtgo.SrtSocket
 }
 
 func (c *conn) initialize() {
@@ -93,11 +97,11 @@ func (c *conn) Close() {
 
 // Log implements logger.Writer.
 func (c *conn) Log(level logger.Level, format string, args ...interface{}) {
-	c.parent.Log(level, "[conn %v] "+format, append([]interface{}{c.connReq.RemoteAddr()}, args...)...)
+	c.parent.Log(level, "[conn %v] "+format, append([]interface{}{c.connSck.addr.String()}, args...)...)
 }
 
 func (c *conn) ip() net.IP {
-	return c.connReq.RemoteAddr().(*net.UDPAddr).IP
+	return c.connSck.addr.IP
 }
 
 func (c *conn) run() { //nolint:dupl
@@ -124,11 +128,16 @@ func (c *conn) run() { //nolint:dupl
 }
 
 func (c *conn) runInner() error {
-	var streamID streamID
-	err := streamID.unmarshal(c.connReq.StreamId())
+	srtStreamID, err := c.connSck.socket.GetSockOptString(srtgo.SRTO_STREAMID)
 	if err != nil {
-		c.connReq.Reject(srt.REJ_PEER)
-		return fmt.Errorf("invalid stream ID '%s': %w", c.connReq.StreamId(), err)
+		return fmt.Errorf("cannot get stream ID: %w", err)
+	}
+
+	var streamID streamID
+	err = streamID.unmarshal(srtStreamID)
+	if err != nil {
+		c.connSck.socket.SetRejectReason(int(srtgo.EConnRej))
+		return fmt.Errorf("invalid stream ID '%s': %w", srtStreamID, err)
 	}
 
 	if streamID.mode == streamIDModePublish {
@@ -158,25 +167,23 @@ func (c *conn) runPublish(streamID *streamID) error {
 		if errors.As(err, &terr) {
 			// wait some seconds to mitigate brute force attacks
 			<-time.After(auth.PauseAfterError)
-			c.connReq.Reject(srt.REJ_PEER)
+			c.connSck.socket.SetRejectReason(int(srtgo.EConnRej))
 			return terr
 		}
-		c.connReq.Reject(srt.REJ_PEER)
+		c.connSck.socket.SetRejectReason(int(srtgo.EConnRej))
 		return err
 	}
 
 	defer path.RemovePublisher(defs.PathRemovePublisherReq{Author: c})
 
-	err = srtCheckPassphrase(c.connReq, path.SafeConf().SRTPublishPassphrase)
-	if err != nil {
-		c.connReq.Reject(srt.REJ_PEER)
-		return err
-	}
-
-	sconn, err := c.connReq.Accept()
-	if err != nil {
-		return err
-	}
+	// TODO: Refactor this?
+	// err = srtCheckPassphrase(c.connSck.socket, path.SafeConf().SRTPublishPassphrase)
+	// if err != nil {
+	// 	c.connSck.socket.SetRejectReason(int(srtgo.EConnRej))
+	// 	return err
+	// }
+	//
+	sconn := c.connSck.socket
 
 	c.mutex.Lock()
 	c.state = connStatePublish
@@ -202,7 +209,7 @@ func (c *conn) runPublish(streamID *streamID) error {
 	}
 }
 
-func (c *conn) runPublishReader(sconn srt.Conn, path defs.Path) error {
+func (c *conn) runPublishReader(sconn *srtgo.SrtSocket, path defs.Path) error {
 	sconn.SetReadDeadline(time.Now().Add(time.Duration(c.readTimeout)))
 	r := &mcmpegts.Reader{R: mcmpegts.NewBufferedReader(sconn)}
 	err := r.Initialize()
@@ -274,25 +281,17 @@ func (c *conn) runRead(streamID *streamID) error {
 		if errors.As(err, &terr) {
 			// wait some seconds to mitigate brute force attacks
 			<-time.After(auth.PauseAfterError)
-			c.connReq.Reject(srt.REJ_PEER)
+			c.connSck.socket.SetRejectReason(int(srtgo.EConnRej))
 			return terr
 		}
-		c.connReq.Reject(srt.REJ_PEER)
+		c.connSck.socket.SetRejectReason(int(srtgo.EConnRej))
 		return err
 	}
 
 	defer path.RemoveReader(defs.PathRemoveReaderReq{Author: c})
 
-	err = srtCheckPassphrase(c.connReq, path.SafeConf().SRTReadPassphrase)
-	if err != nil {
-		c.connReq.Reject(srt.REJ_PEER)
-		return err
-	}
+	sconn := c.connSck.socket
 
-	sconn, err := c.connReq.Accept()
-	if err != nil {
-		return err
-	}
 	defer sconn.Close()
 
 	c.mutex.Lock()
@@ -357,7 +356,7 @@ func (c *conn) apiItem() *defs.APISRTConn {
 	item := &defs.APISRTConn{
 		ID:         c.uuid,
 		Created:    c.created,
-		RemoteAddr: c.connReq.RemoteAddr().String(),
+		RemoteAddr: c.connSck.addr.String(),
 		State: func() defs.APISRTConnState {
 			switch c.state {
 			case connStateRead:
@@ -374,64 +373,65 @@ func (c *conn) apiItem() *defs.APISRTConn {
 		Query: c.query,
 	}
 
-	if c.sconn != nil {
-		var s srt.Statistics
-		c.sconn.Stats(&s)
-
-		item.PacketsSent = s.Accumulated.PktSent
-		item.PacketsReceived = s.Accumulated.PktRecv
-		item.PacketsSentUnique = s.Accumulated.PktSentUnique
-		item.PacketsReceivedUnique = s.Accumulated.PktRecvUnique
-		item.PacketsSendLoss = s.Accumulated.PktSendLoss
-		item.PacketsReceivedLoss = s.Accumulated.PktRecvLoss
-		item.PacketsRetrans = s.Accumulated.PktRetrans
-		item.PacketsReceivedRetrans = s.Accumulated.PktRecvRetrans
-		item.PacketsSentACK = s.Accumulated.PktSentACK
-		item.PacketsReceivedACK = s.Accumulated.PktRecvACK
-		item.PacketsSentNAK = s.Accumulated.PktSentNAK
-		item.PacketsReceivedNAK = s.Accumulated.PktRecvNAK
-		item.PacketsSentKM = s.Accumulated.PktSentKM
-		item.PacketsReceivedKM = s.Accumulated.PktRecvKM
-		item.UsSndDuration = s.Accumulated.UsSndDuration
-		item.PacketsReceivedBelated = s.Accumulated.PktRecvBelated
-		item.PacketsSendDrop = s.Accumulated.PktSendDrop
-		item.PacketsReceivedDrop = s.Accumulated.PktRecvDrop
-		item.PacketsReceivedUndecrypt = s.Accumulated.PktRecvUndecrypt
-		item.BytesSent = s.Accumulated.ByteSent
-		item.BytesReceived = s.Accumulated.ByteRecv
-		item.BytesSentUnique = s.Accumulated.ByteSentUnique
-		item.BytesReceivedUnique = s.Accumulated.ByteRecvUnique
-		item.BytesReceivedLoss = s.Accumulated.ByteRecvLoss
-		item.BytesRetrans = s.Accumulated.ByteRetrans
-		item.BytesReceivedRetrans = s.Accumulated.ByteRecvRetrans
-		item.BytesReceivedBelated = s.Accumulated.ByteRecvBelated
-		item.BytesSendDrop = s.Accumulated.ByteSendDrop
-		item.BytesReceivedDrop = s.Accumulated.ByteRecvDrop
-		item.BytesReceivedUndecrypt = s.Accumulated.ByteRecvUndecrypt
-		item.UsPacketsSendPeriod = s.Instantaneous.UsPktSendPeriod
-		item.PacketsFlowWindow = s.Instantaneous.PktFlowWindow
-		item.PacketsFlightSize = s.Instantaneous.PktFlightSize
-		item.MsRTT = s.Instantaneous.MsRTT
-		item.MbpsSendRate = s.Instantaneous.MbpsSentRate
-		item.MbpsReceiveRate = s.Instantaneous.MbpsRecvRate
-		item.MbpsLinkCapacity = s.Instantaneous.MbpsLinkCapacity
-		item.BytesAvailSendBuf = s.Instantaneous.ByteAvailSendBuf
-		item.BytesAvailReceiveBuf = s.Instantaneous.ByteAvailRecvBuf
-		item.MbpsMaxBW = s.Instantaneous.MbpsMaxBW
-		item.ByteMSS = s.Instantaneous.ByteMSS
-		item.PacketsSendBuf = s.Instantaneous.PktSendBuf
-		item.BytesSendBuf = s.Instantaneous.ByteSendBuf
-		item.MsSendBuf = s.Instantaneous.MsSendBuf
-		item.MsSendTsbPdDelay = s.Instantaneous.MsSendTsbPdDelay
-		item.PacketsReceiveBuf = s.Instantaneous.PktRecvBuf
-		item.BytesReceiveBuf = s.Instantaneous.ByteRecvBuf
-		item.MsReceiveBuf = s.Instantaneous.MsRecvBuf
-		item.MsReceiveTsbPdDelay = s.Instantaneous.MsRecvTsbPdDelay
-		item.PacketsReorderTolerance = s.Instantaneous.PktReorderTolerance
-		item.PacketsReceivedAvgBelatedTime = s.Instantaneous.PktRecvAvgBelatedTime
-		item.PacketsSendLossRate = s.Instantaneous.PktSendLossRate
-		item.PacketsReceivedLossRate = s.Instantaneous.PktRecvLossRate
-	}
+	// TODO: refactor statistics
+	// if c.sconn != nil {
+	// 	var s srt.Statistics
+	// 	c.sconn.Stats(&s)
+	//
+	// 	item.PacketsSent = s.Accumulated.PktSent
+	// 	item.PacketsReceived = s.Accumulated.PktRecv
+	// 	item.PacketsSentUnique = s.Accumulated.PktSentUnique
+	// 	item.PacketsReceivedUnique = s.Accumulated.PktRecvUnique
+	// 	item.PacketsSendLoss = s.Accumulated.PktSendLoss
+	// 	item.PacketsReceivedLoss = s.Accumulated.PktRecvLoss
+	// 	item.PacketsRetrans = s.Accumulated.PktRetrans
+	// 	item.PacketsReceivedRetrans = s.Accumulated.PktRecvRetrans
+	// 	item.PacketsSentACK = s.Accumulated.PktSentACK
+	// 	item.PacketsReceivedACK = s.Accumulated.PktRecvACK
+	// 	item.PacketsSentNAK = s.Accumulated.PktSentNAK
+	// 	item.PacketsReceivedNAK = s.Accumulated.PktRecvNAK
+	// 	item.PacketsSentKM = s.Accumulated.PktSentKM
+	// 	item.PacketsReceivedKM = s.Accumulated.PktRecvKM
+	// 	item.UsSndDuration = s.Accumulated.UsSndDuration
+	// 	item.PacketsReceivedBelated = s.Accumulated.PktRecvBelated
+	// 	item.PacketsSendDrop = s.Accumulated.PktSendDrop
+	// 	item.PacketsReceivedDrop = s.Accumulated.PktRecvDrop
+	// 	item.PacketsReceivedUndecrypt = s.Accumulated.PktRecvUndecrypt
+	// 	item.BytesSent = s.Accumulated.ByteSent
+	// 	item.BytesReceived = s.Accumulated.ByteRecv
+	// 	item.BytesSentUnique = s.Accumulated.ByteSentUnique
+	// 	item.BytesReceivedUnique = s.Accumulated.ByteRecvUnique
+	// 	item.BytesReceivedLoss = s.Accumulated.ByteRecvLoss
+	// 	item.BytesRetrans = s.Accumulated.ByteRetrans
+	// 	item.BytesReceivedRetrans = s.Accumulated.ByteRecvRetrans
+	// 	item.BytesReceivedBelated = s.Accumulated.ByteRecvBelated
+	// 	item.BytesSendDrop = s.Accumulated.ByteSendDrop
+	// 	item.BytesReceivedDrop = s.Accumulated.ByteRecvDrop
+	// 	item.BytesReceivedUndecrypt = s.Accumulated.ByteRecvUndecrypt
+	// 	item.UsPacketsSendPeriod = s.Instantaneous.UsPktSendPeriod
+	// 	item.PacketsFlowWindow = s.Instantaneous.PktFlowWindow
+	// 	item.PacketsFlightSize = s.Instantaneous.PktFlightSize
+	// 	item.MsRTT = s.Instantaneous.MsRTT
+	// 	item.MbpsSendRate = s.Instantaneous.MbpsSentRate
+	// 	item.MbpsReceiveRate = s.Instantaneous.MbpsRecvRate
+	// 	item.MbpsLinkCapacity = s.Instantaneous.MbpsLinkCapacity
+	// 	item.BytesAvailSendBuf = s.Instantaneous.ByteAvailSendBuf
+	// 	item.BytesAvailReceiveBuf = s.Instantaneous.ByteAvailRecvBuf
+	// 	item.MbpsMaxBW = s.Instantaneous.MbpsMaxBW
+	// 	item.ByteMSS = s.Instantaneous.ByteMSS
+	// 	item.PacketsSendBuf = s.Instantaneous.PktSendBuf
+	// 	item.BytesSendBuf = s.Instantaneous.ByteSendBuf
+	// 	item.MsSendBuf = s.Instantaneous.MsSendBuf
+	// 	item.MsSendTsbPdDelay = s.Instantaneous.MsSendTsbPdDelay
+	// 	item.PacketsReceiveBuf = s.Instantaneous.PktRecvBuf
+	// 	item.BytesReceiveBuf = s.Instantaneous.ByteRecvBuf
+	// 	item.MsReceiveBuf = s.Instantaneous.MsRecvBuf
+	// 	item.MsReceiveTsbPdDelay = s.Instantaneous.MsRecvTsbPdDelay
+	// 	item.PacketsReorderTolerance = s.Instantaneous.PktReorderTolerance
+	// 	item.PacketsReceivedAvgBelatedTime = s.Instantaneous.PktRecvAvgBelatedTime
+	// 	item.PacketsSendLossRate = s.Instantaneous.PktSendLossRate
+	// 	item.PacketsReceivedLossRate = s.Instantaneous.PktRecvLossRate
+	// }
 
 	return item
 }
