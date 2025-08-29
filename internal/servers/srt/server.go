@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/haivision/srtgo"
 
+	"github.com/bluenviron/mediamtx/internal/auth"
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/defs"
 	"github.com/bluenviron/mediamtx/internal/externalcmd"
@@ -121,6 +122,11 @@ func listenCallback(s *Server, socket *srtgo.SrtSocket, _ int, _ *net.UDPAddr, s
 	req := defs.PathAccessRequest{
 		Name:    streamID.path,
 		Publish: streamID.mode == streamIDModePublish,
+		Query:   streamID.query,
+		Credentials: &auth.Credentials{
+			User: streamID.user,
+			Pass: streamID.pass,
+		},
 	}
 	path, err := s.PathManager.FindPathConf(defs.PathFindPathConfReq{
 		AccessRequest: req,
