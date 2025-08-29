@@ -215,6 +215,10 @@ func (c *conn) runPublishReader(sconn *srtgo.SrtSocket, streamID *streamID, path
 			Query:    streamID.query,
 			Publish:  true,
 			SkipAuth: true,
+			Credentials: &auth.Credentials{
+				User: streamID.user,
+				Pass: streamID.pass,
+			},
 		},
 	})
 	if err != nil {
