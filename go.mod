@@ -24,6 +24,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gookit/color v1.6.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/haivision/srtgo v0.0.0-20230627061225-a70d53fcd618
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/matthewhartstonge/argon2 v1.4.1
 	github.com/minio/selfupdate v0.6.0
@@ -64,7 +65,6 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.18.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
-	github.com/haivision/srtgo v0.0.0-20230627061225-a70d53fcd618 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
