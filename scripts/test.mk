@@ -15,9 +15,10 @@ test-nodocker: test-internal test-core
 define DOCKERFILE_TEST
 ARG ARCH
 FROM $$ARCH/$(BASE_IMAGE)
-RUN apk add --no-cache make gcc musl-dev
+RUN apk add --no-cache make gcc musl-dev libsrt-dev
 WORKDIR /s
 COPY go.mod go.sum ./
+ENV CGO_ENABLED=1
 RUN go mod download
 endef
 export DOCKERFILE_TEST

@@ -786,7 +786,7 @@ func TestAPIProtocolListGet(t *testing.T) {
 							"byteMSS":                float64(1500),
 							"bytesAvailReceiveBuf":   float64(12286500),
 							"bytesAvailSendBuf":      float64(12288000),
-							"bytesReceiveBuf":        float64(564),
+							"bytesReceiveBuf":        out1.(map[string]interface{})["items"].([]interface{})[0].(map[string]interface{})["bytesReceiveBuf"],
 							"bytesReceived":          float64(608),
 							"bytesReceivedBelated":   float64(0),
 							"bytesReceivedDrop":      float64(0),

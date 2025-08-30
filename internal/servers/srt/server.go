@@ -91,10 +91,11 @@ type Server struct {
 	PathManager         serverPathManager
 	Parent              serverParent
 
-	ctx       context.Context
-	ctxCancel func()
-	wg        sync.WaitGroup
-	conns     map[*conn]struct{}
+	ctx        context.Context
+	ctxCancel  func()
+	wg         sync.WaitGroup
+	connsMutex sync.Mutex
+	conns      map[*conn]struct{}
 
 	// in
 	chNewConnRequest chan struct {
@@ -262,19 +263,25 @@ outer:
 				parent:              s,
 			}
 			c.initialize()
+			s.connsMutex.Lock()
 			s.conns[c] = struct{}{}
+			s.connsMutex.Unlock()
 
 		case c := <-s.chCloseConn:
+			s.connsMutex.Lock()
 			delete(s.conns, c)
+			s.connsMutex.Unlock()
 
 		case req := <-s.chAPIConnsList:
 			data := &defs.APISRTConnList{
 				Items: []*defs.APISRTConn{},
 			}
 
+			s.connsMutex.Lock()
 			for c := range s.conns {
 				data.Items = append(data.Items, c.apiItem())
 			}
+			s.connsMutex.Unlock()
 
 			sort.Slice(data.Items, func(i, j int) bool {
 				return data.Items[i].Created.Before(data.Items[j].Created)
@@ -298,7 +305,9 @@ outer:
 				continue
 			}
 
+			s.connsMutex.Lock()
 			delete(s.conns, c)
+			s.connsMutex.Unlock()
 			c.Close()
 			req.res <- serverAPIConnsKickRes{}
 
@@ -308,11 +317,11 @@ outer:
 	}
 
 	s.ctxCancel()
-
-	s.sck.Close()
 }
 
 func (s *Server) findConnByUUID(uuid uuid.UUID) *conn {
+	s.connsMutex.Lock()
+	defer s.connsMutex.Unlock()
 	for sx := range s.conns {
 		if sx.uuid == uuid {
 			return sx
