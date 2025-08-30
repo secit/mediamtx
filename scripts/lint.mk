@@ -6,6 +6,7 @@ export DOCKERFILE_DOCS_LINT
 
 define DOCKERFILE_API_DOCS_LINT
 FROM $(NODE_IMAGE)
+RUN apk add --no-cache libsrt-dev
 RUN yarn global add @redocly/cli@1.0.0-beta.123
 endef
 export DOCKERFILE_API_DOCS_LINT

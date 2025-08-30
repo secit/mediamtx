@@ -245,7 +245,7 @@ func TestPathRunOnConnect(t *testing.T) {
 
 					conf := srt.DefaultConfig()
 					var address string
-					address, err = conf.UnmarshalURL("srt://localhost:8890?streamid=publish:test")
+					address, err = conf.UnmarshalURL("srt://127.0.0.1:8890?streamid=publish:test")
 					require.NoError(t, err)
 
 					err = conf.Validate()
@@ -512,7 +512,7 @@ func TestPathRunOnRead(t *testing.T) {
 				case "srt":
 					conf := srt.DefaultConfig()
 					var address string
-					address, err = conf.UnmarshalURL("srt://localhost:8890?streamid=read:test:query=value")
+					address, err = conf.UnmarshalURL("srt://127.0.0.1:8890?streamid=read:test:query=value")
 					require.NoError(t, err)
 
 					err = conf.Validate()

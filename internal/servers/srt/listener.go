@@ -20,6 +20,7 @@ func (l *listener) initialize() {
 }
 
 func (l *listener) run() {
+	defer l.sck.Close()
 	defer l.wg.Done()
 
 	err := l.runInner()
@@ -36,6 +37,9 @@ func (l *listener) runInner() error {
 		s, u, err := l.sck.Accept()
 		if err != nil {
 			if ne, ok := err.(net.Error); ok && ne.Timeout() {
+				if l.parent.ctx.Err() != nil {
+					return l.parent.ctx.Err()
+				}
 				continue
 			}
 			return err
