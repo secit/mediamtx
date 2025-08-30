@@ -175,6 +175,9 @@ func TestServerRead(t *testing.T) {
 	require.NoError(t, err)
 
 	pathManager := &test.PathManager{
+		FindPathConfImpl: func(req defs.PathFindPathConfReq) (*conf.Path, error) {
+			return &conf.Path{}, nil
+		},
 		AddReaderImpl: func(req defs.PathAddReaderReq) (defs.Path, *stream.Stream, error) {
 			require.Equal(t, "teststream", req.AccessRequest.Name)
 			require.Equal(t, "param=value", req.AccessRequest.Query)

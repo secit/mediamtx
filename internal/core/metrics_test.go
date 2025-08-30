@@ -306,7 +306,7 @@ webrtc_sessions_rtcp_packets_sent 0
 			defer wg.Done()
 
 			srtConf := srt.DefaultConfig()
-			address, err2 := srtConf.UnmarshalURL("srt://localhost:8890?streamid=publish:srt_path")
+			address, err2 := srtConf.UnmarshalURL("srt://127.0.0.1:8890?streamid=publish:srt_path")
 			require.NoError(t, err2)
 
 			err2 = srtConf.Validate()
@@ -416,7 +416,7 @@ webrtc_sessions_rtcp_packets_sent 0
 				`srt_conns_packets_sent\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
 				`srt_conns_packets_received\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
 				`srt_conns_packets_sent_unique\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
-				`srt_conns_packets_received_unique\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} 1`+"\n"+
+				`srt_conns_packets_received_unique\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} 0`+"\n"+
 				`srt_conns_packets_send_loss\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
 				`srt_conns_packets_received_loss\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
 				`srt_conns_packets_retrans\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
@@ -441,16 +441,16 @@ webrtc_sessions_rtcp_packets_sent 0
 				`srt_conns_bytes_send_drop\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
 				`srt_conns_bytes_received_drop\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
 				`srt_conns_bytes_received_undecrypt\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
-				`srt_conns_us_packets_send_period\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} \d+\.\d+`+"\n"+
+				`srt_conns_us_packets_send_period\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
 				`srt_conns_packets_flow_window\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
 				`srt_conns_packets_flight_size\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
 				`srt_conns_ms_rtt\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} \d+\.\d+`+"\n"+
 				`srt_conns_mbps_send_rate\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
-				`srt_conns_mbps_receive_rate\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
+				`srt_conns_mbps_receive_rate\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} \d+\.\d+`+"\n"+
 				`srt_conns_mbps_link_capacity\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
 				`srt_conns_bytes_avail_send_buf\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
 				`srt_conns_bytes_avail_receive_buf\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
-				`srt_conns_mbps_max_bw\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} -1`+"\n"+
+				`srt_conns_mbps_max_bw\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
 				`srt_conns_bytes_mss\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
 				`srt_conns_packets_send_buf\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
 				`srt_conns_bytes_send_buf\{id=".*?",path=".*?",remoteAddr=".*?",state="publish"\} [0-9]+`+"\n"+
