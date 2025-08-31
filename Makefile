@@ -16,6 +16,7 @@ help:
 	@echo "  lint             run linters"
 	@echo "  apidocs          generate api docs HTML"
 	@echo "  binaries         build binaries for all platforms"
+	@echo "  haivision        build binaries for all supported platforms with haivision SRT"
 	@echo "  dockerhub        build and push images to Docker Hub"
 	@echo ""
 
