@@ -15,6 +15,9 @@ RUN dpkg --add-architecture arm64 && apt-get update && \
 WORKDIR /build
 
 RUN git clone --depth=1 https://github.com/Haivision/srt.git
+WORKDIR /build/srt
+RUN git rev-parse HEAD > /tmp/srt_commit.txt
+
 WORKDIR /build/srt/build-arm
 RUN CC=arm-linux-gnueabihf-gcc CXX=arm-linux-gnueabihf-g++ \
   cmake .. -G Ninja \
@@ -43,8 +46,11 @@ COPY . .
 
 RUN rm -rf tmp binaries && \
   mkdir tmp binaries && \
-  cp mediamtx.yml LICENSE tmp/ && \
+  cp mediamtx.yml LICENSE NOTICE.md tmp/ && \
   go generate ./...
+
+COPY --from=toolchain-arm /tmp/srt_commit.txt /tmp/srt_commit.txt
+RUN sed -i "s|<commit hash>|$$(cat /tmp/srt_commit.txt)|" tmp/NOTICE.md
 
 FROM gobuild as gobuild-amd64
 RUN apt-get update && \
@@ -53,7 +59,7 @@ RUN apt-get update && \
   rm -rf /var/lib/apt/lists/*
 
 RUN go build -o "tmp/mediamtx" && \
-  tar -C tmp -czf "binaries/$(BINARY_NAME)_$$(cat internal/core/VERSION)_linux_amd64.tar.gz" --owner=0 --group=0 "mediamtx" mediamtx.yml LICENSE
+	tar -C tmp -czf "binaries/$(BINARY_NAME)_$$(cat internal/core/VERSION)_linux_amd64.tar.gz" --owner=0 --group=0 "mediamtx" mediamtx.yml LICENSE NOTICE.md
 
 FROM gobuild AS gobuild-armv7
 RUN dpkg --add-architecture armhf && apt-get update && \
@@ -71,7 +77,7 @@ ENV GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=1 \
   PKG_CONFIG_LIBDIR=/opt/arm-srt/lib/pkgconfig
 
 RUN go build -o "tmp/$(BINARY_NAME)" && \
-  tar -C tmp -czf "binaries/$(BINARY_NAME)_$$(cat internal/core/VERSION)_linux_armv7.tar.gz" --owner=0 --group=0 "mediamtx" mediamtx.yml LICENSE
+  tar -C tmp -czf "binaries/$(BINARY_NAME)_$$(cat internal/core/VERSION)_linux_armv7.tar.gz" --owner=0 --group=0 "mediamtx" mediamtx.yml LICENSE NOTICE.md
 
 FROM gobuild AS gobuild-arm64
 RUN dpkg --add-architecture arm64 && apt-get update && \
@@ -89,7 +95,7 @@ ENV GOOS=linux GOARCH=arm64 CGO_ENABLED=1 \
   PKG_CONFIG_LIBDIR=/opt/arm64-srt/lib/pkgconfig
 
 RUN go build -o "tmp/$(BINARY_NAME)" && \
-  tar -C tmp -czf "binaries/$(BINARY_NAME)_$$(cat internal/core/VERSION)_linux_arm64.tar.gz" --owner=0 --group=0 "mediamtx" mediamtx.yml LICENSE
+  tar -C tmp -czf "binaries/$(BINARY_NAME)_$$(cat internal/core/VERSION)_linux_arm64.tar.gz" --owner=0 --group=0 "mediamtx" mediamtx.yml LICENSE NOTICE.md
 
 FROM debian:bullseye-slim AS final
 COPY --from=gobuild-amd64 /src/binaries/*.tar.gz /src/binaries/
