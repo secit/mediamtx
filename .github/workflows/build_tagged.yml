@@ -1,0 +1,25 @@
+name: Build tagged release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+
+    - run: make haivision
+
+    - name: Release
+      uses: "marvinpinto/action-automatic-releases@latest"
+      with:
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        prerelease: ${{ startsWith(github.ref_name, 'v') && contains(github.ref_name, '-haivision-') }}
+        files: |
+          binaries/*.tar.gz
