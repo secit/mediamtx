@@ -40,7 +40,7 @@ RUN CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
   ninja && ninja install && \
   file /opt/arm64-srt/lib/libsrt.a
 
-FROM golang:1.24-bullseye AS gobuild
+FROM golang:1.25-bookworm AS gobuild
 WORKDIR /src
 COPY . .
 
